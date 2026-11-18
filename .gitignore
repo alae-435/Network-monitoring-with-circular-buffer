@@ -1,0 +1,4 @@
+*.exe
+test_circular_queue
+test_asan
+*.o
