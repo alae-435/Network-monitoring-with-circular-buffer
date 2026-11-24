@@ -1,4 +1,4 @@
-/* circular_queue.h - File circulaire de paquets à capacité fixe (FIFO) */
+/* circular_queue.h - Fixed-capacity circular packet queue (FIFO) */
 #ifndef CIRCULAR_QUEUE_H
 #define CIRCULAR_QUEUE_H
 
@@ -6,21 +6,21 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define CQ_IP_LEN 16 /* "255.255.255.255" + fin de chaîne */
+#define CQ_IP_LEN 16 /* "255.255.255.255" + null terminator */
 
 typedef enum { PROTO_TCP = 0, PROTO_UDP, PROTO_ICMP, PROTO_OTHER, PROTO_COUNT } Protocol;
 
 typedef struct {
-    double   timestamp;        /* secondes depuis le début de la capture */
+    double   timestamp;        /* seconds since the start of the capture */
     char     src[CQ_IP_LEN];
     char     dst[CQ_IP_LEN];
     Protocol protocol;
-    uint32_t size;             /* octets */
+    uint32_t size;             /* bytes */
 } Packet;
 
 typedef enum {
-    OVERFLOW_REJECT = 0,       /* file pleine : le nouveau paquet est écarté */
-    OVERFLOW_OVERWRITE         /* file pleine : le plus ancien est écrasé    */
+    OVERFLOW_REJECT = 0,       /* queue full: the new packet is dropped        */
+    OVERFLOW_OVERWRITE         /* queue full: the oldest packet is overwritten */
 } OverflowPolicy;
 
 typedef enum { CQ_OK = 0, CQ_OVERWROTE, CQ_REJECTED, CQ_ERROR } CQStatus;
@@ -28,44 +28,44 @@ typedef enum { CQ_OK = 0, CQ_OVERWROTE, CQ_REJECTED, CQ_ERROR } CQStatus;
 typedef struct {
     Packet        *data;
     size_t         capacity;
-    size_t         head;       /* indice du plus ancien paquet (prochain dequeue) */
-    size_t         tail;       /* indice de la prochaine écriture                 */
+    size_t         head;       /* index of the oldest packet (next dequeue) */
+    size_t         tail;       /* index of the next write                   */
     size_t         count;
     OverflowPolicy policy;
-    uint64_t       bytes_retained;            /* maintenu incrémentalement */
-    size_t         proto_count[PROTO_COUNT];  /* maintenu incrémentalement */
-    uint64_t       overwritten;               /* paquets écrasés  */
-    uint64_t       rejected;                  /* paquets refusés  */
+    uint64_t       bytes_retained;            /* maintained incrementally */
+    size_t         proto_count[PROTO_COUNT];  /* maintained incrementally */
+    uint64_t       overwritten;               /* packets overwritten */
+    uint64_t       rejected;                  /* packets rejected    */
 } CircularQueue;
 
 typedef struct {
     size_t   count;
     size_t   capacity;
-    double   occupancy;        /* count / capacity, entre 0 et 1 */
+    double   occupancy;        /* count / capacity, between 0 and 1 */
     uint64_t bytes_retained;
-    double   avg_size;         /* 0 si la file est vide */
+    double   avg_size;         /* 0 if the queue is empty */
     size_t   per_protocol[PROTO_COUNT];
 } CQStats;
 
-/* Cycle de vie */
+/* Lifecycle */
 bool     cq_init(CircularQueue *q, size_t capacity, OverflowPolicy policy);
 void     cq_destroy(CircularQueue *q);
-void     cq_clear(CircularQueue *q);            /* vide la file, garde la capacité ; remet les compteurs d'écrasement/rejet à 0 */
+void     cq_clear(CircularQueue *q);            /* empties the queue, keeps the capacity; resets the overwrite/reject counters to 0 */
 
-/* Opérations de base */
+/* Basic operations */
 CQStatus cq_enqueue(CircularQueue *q, const Packet *p);
-bool     cq_dequeue(CircularQueue *q, Packet *out);   /* out peut être NULL */
+bool     cq_dequeue(CircularQueue *q, Packet *out);   /* out may be NULL */
 bool     cq_peek(const CircularQueue *q, Packet *out);
 
-/* État */
+/* State */
 bool     cq_is_empty(const CircularQueue *q);
 bool     cq_is_full(const CircularQueue *q);
 
-/* Copie des paquets dans l'ordre FIFO (du plus ancien au plus récent).
- * Retourne le nombre de paquets copiés (<= max). L'interface peut trier la copie. */
+/* Copies the packets in FIFO order (oldest to newest).
+ * Returns the number of packets copied (<= max). The UI may sort the copy. */
 size_t   cq_snapshot(const CircularQueue *q, Packet *out, size_t max);
 
-/* Statistiques */
+/* Statistics */
 void     cq_stats(const CircularQueue *q, CQStats *s);
 const char *cq_protocol_name(Protocol p);
 

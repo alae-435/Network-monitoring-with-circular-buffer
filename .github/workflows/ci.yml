@@ -5,9 +5,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Tests unitaires
+      - name: Unit tests
         run: make test
         working-directory: file_circulaire
-      - name: Tests avec ASan et UBSan
+      - name: Tests with ASan and UBSan
         run: make sanitize
         working-directory: file_circulaire

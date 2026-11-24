@@ -45,7 +45,7 @@ CQStatus cq_enqueue(CircularQueue *q, const Packet *p) {
             q->rejected++;
             return CQ_REJECTED;
         }
-        /* OVERWRITE : on évince le plus ancien */
+        /* OVERWRITE : evict the oldest packet */
         remove_accounting(q, &q->data[q->head]);
         q->head = (q->head + 1) % q->capacity;
         q->count--;

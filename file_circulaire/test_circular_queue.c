@@ -5,7 +5,7 @@
 
 static int tests = 0, failures = 0;
 #define CHECK(cond) do { tests++; if (!(cond)) { failures++; \
-    printf("  ECHEC ligne %d : %s\n", __LINE__, #cond); } } while (0)
+    printf("  FAILURE line %d : %s\n", __LINE__, #cond); } } while (0)
 
 static Packet mk(double ts, Protocol pr, uint32_t size) {
     Packet p; memset(&p, 0, sizeof p);
@@ -15,14 +15,14 @@ static Packet mk(double ts, Protocol pr, uint32_t size) {
 }
 
 static void test_init_invalid(void) {
-    puts("init invalide");
+    puts("invalid init");
     CircularQueue q;
     CHECK(!cq_init(&q, 0, OVERFLOW_REJECT));
     CHECK(!cq_init(NULL, 4, OVERFLOW_REJECT));
 }
 
 static void test_empty(void) {
-    puts("file vide");
+    puts("empty queue");
     CircularQueue q; cq_init(&q, 4, OVERFLOW_REJECT);
     Packet out; CQStats s;
     CHECK(cq_is_empty(&q) && !cq_is_full(&q));
@@ -35,19 +35,19 @@ static void test_empty(void) {
 }
 
 static void test_fifo_basic(void) {
-    puts("ordre FIFO, peek");
+    puts("FIFO order, peek");
     CircularQueue q; cq_init(&q, 4, OVERFLOW_REJECT);
     for (int i = 0; i < 3; i++) { Packet p = mk(i, PROTO_TCP, 100); CHECK(cq_enqueue(&q, &p) == CQ_OK); }
     Packet out;
     CHECK(cq_peek(&q, &out) && out.timestamp == 0);
-    CHECK(q.count == 3);                       /* peek ne retire rien */
+    CHECK(q.count == 3);                       /* peek removes nothing */
     for (int i = 0; i < 3; i++) { CHECK(cq_dequeue(&q, &out) && out.timestamp == i); }
     CHECK(cq_is_empty(&q));
     cq_destroy(&q);
 }
 
 static void test_full_reject(void) {
-    puts("file pleine, politique REJECT");
+    puts("full queue, REJECT policy");
     CircularQueue q; cq_init(&q, 3, OVERFLOW_REJECT);
     for (int i = 0; i < 3; i++) { Packet p = mk(i, PROTO_UDP, 10); cq_enqueue(&q, &p); }
     CHECK(cq_is_full(&q));
@@ -60,7 +60,7 @@ static void test_full_reject(void) {
 }
 
 static void test_full_overwrite(void) {
-    puts("file pleine, politique OVERWRITE");
+    puts("full queue, OVERWRITE policy");
     CircularQueue q; cq_init(&q, 3, OVERFLOW_OVERWRITE);
     for (int i = 0; i < 3; i++) { Packet p = mk(i, PROTO_TCP, 100); cq_enqueue(&q, &p); }
     Packet p3 = mk(3, PROTO_UDP, 50);
@@ -75,7 +75,7 @@ static void test_full_overwrite(void) {
 }
 
 static void test_capacity_one(void) {
-    puts("capacité 1");
+    puts("capacity 1");
     CircularQueue q; cq_init(&q, 1, OVERFLOW_REJECT);
     Packet a = mk(1, PROTO_TCP, 10), b = mk(2, PROTO_UDP, 20), out;
     CHECK(cq_enqueue(&q, &a) == CQ_OK);
@@ -95,16 +95,16 @@ static void test_capacity_one(void) {
 }
 
 static void test_wraparound(void) {
-    puts("retour au début du tableau");
+    puts("wrap-around of the array");
     CircularQueue q; cq_init(&q, 4, OVERFLOW_REJECT);
     Packet out;
     for (int i = 0; i < 4; i++) { Packet p = mk(i, PROTO_TCP, 10); cq_enqueue(&q, &p); }
     cq_dequeue(&q, &out); cq_dequeue(&q, &out);          /* head = 2 */
     for (int i = 4; i < 6; i++) { Packet p = mk(i, PROTO_ICMP, 20); cq_enqueue(&q, &p); }
-    CHECK(q.tail == 2 && q.head == 2 && cq_is_full(&q)); /* tail a bouclé */
+    CHECK(q.tail == 2 && q.head == 2 && cq_is_full(&q)); /* tail has wrapped around */
     Packet snap[4]; CHECK(cq_snapshot(&q, snap, 4) == 4);
     for (int i = 0; i < 4; i++) CHECK(snap[i].timestamp == i + 2);
-    /* nombreux tours complets */
+    /* many full laps */
     for (int i = 6; i < 1000; i++) {
         cq_dequeue(&q, &out); CHECK(out.timestamp == i - 4);
         Packet p = mk(i, PROTO_UDP, 5); CHECK(cq_enqueue(&q, &p) == CQ_OK);
@@ -113,7 +113,7 @@ static void test_wraparound(void) {
 }
 
 static void test_wraparound_overwrite(void) {
-    puts("retour au début avec écrasements");
+    puts("wrap-around with overwrites");
     CircularQueue q; cq_init(&q, 5, OVERFLOW_OVERWRITE);
     for (int i = 0; i < 23; i++) { Packet p = mk(i, (Protocol)(i % 3), 10 + i); cq_enqueue(&q, &p); }
     CHECK(q.overwritten == 18 && q.count == 5);
@@ -127,7 +127,7 @@ static void test_wraparound_overwrite(void) {
 }
 
 static void test_stats(void) {
-    puts("statistiques");
+    puts("statistics");
     CircularQueue q; cq_init(&q, 10, OVERFLOW_REJECT);
     Packet a = mk(0, PROTO_TCP, 100), b = mk(1, PROTO_UDP, 200), c = mk(2, PROTO_TCP, 300), d = mk(3, PROTO_OTHER, 400);
     cq_enqueue(&q, &a); cq_enqueue(&q, &b); cq_enqueue(&q, &c); cq_enqueue(&q, &d);
@@ -137,7 +137,7 @@ static void test_stats(void) {
     CHECK(s.bytes_retained == 1000 && fabs(s.avg_size - 250.0) < 1e-9);
     CHECK(s.per_protocol[PROTO_TCP] == 2 && s.per_protocol[PROTO_UDP] == 1 &&
           s.per_protocol[PROTO_ICMP] == 0 && s.per_protocol[PROTO_OTHER] == 1);
-    Packet out; cq_dequeue(&q, &out);                    /* retire a (TCP, 100) */
+    Packet out; cq_dequeue(&q, &out);                    /* removes a (TCP, 100) */
     cq_stats(&q, &s);
     CHECK(s.bytes_retained == 900 && s.per_protocol[PROTO_TCP] == 1);
     CHECK(strcmp(cq_protocol_name(PROTO_ICMP), "ICMP") == 0);
@@ -145,20 +145,20 @@ static void test_stats(void) {
 }
 
 static void test_snapshot_independent(void) {
-    puts("snapshot : copie indépendante et limite max");
+    puts("snapshot: independent copy and max limit");
     CircularQueue q; cq_init(&q, 4, OVERFLOW_REJECT);
     for (int i = 0; i < 4; i++) { Packet p = mk(i, PROTO_TCP, 10 * (4 - i)); cq_enqueue(&q, &p); }
     Packet snap[4];
     CHECK(cq_snapshot(&q, snap, 2) == 2);
     CHECK(cq_snapshot(&q, snap, 4) == 4);
-    snap[0].size = 9999; snap[0].timestamp = -1;          /* l'UI modifie / trie sa copie */
+    snap[0].size = 9999; snap[0].timestamp = -1;          /* the UI modifies / sorts its copy */
     Packet front; cq_peek(&q, &front);
     CHECK(front.timestamp == 0 && front.size == 40);
     cq_destroy(&q);
 }
 
 static void test_clear_and_errors(void) {
-    puts("clear et paramètres invalides");
+    puts("clear and invalid parameters");
     CircularQueue q; cq_init(&q, 3, OVERFLOW_OVERWRITE);
     for (int i = 0; i < 5; i++) { Packet p = mk(i, PROTO_TCP, 10); cq_enqueue(&q, &p); }
     cq_clear(&q);
@@ -166,7 +166,7 @@ static void test_clear_and_errors(void) {
     CHECK(cq_is_empty(&q) && s.bytes_retained == 0 && s.per_protocol[PROTO_TCP] == 0);
     CHECK(q.overwritten == 0 && s.capacity == 3);
     Packet p = mk(1, PROTO_TCP, 10);
-    CHECK(cq_enqueue(&q, &p) == CQ_OK);                   /* réutilisable */
+    CHECK(cq_enqueue(&q, &p) == CQ_OK);                   /* reusable */
     Packet bad = mk(1, (Protocol)42, 10);
     CHECK(cq_enqueue(&q, &bad) == CQ_ERROR);
     CHECK(cq_enqueue(NULL, &p) == CQ_ERROR);
@@ -178,6 +178,6 @@ int main(void) {
     test_full_overwrite(); test_capacity_one(); test_wraparound();
     test_wraparound_overwrite(); test_stats(); test_snapshot_independent();
     test_clear_and_errors();
-    printf("\n%d vérifications, %d échec(s)\n", tests, failures);
+    printf("\n%d checks, %d failure(s)\n", tests, failures);
     return failures ? 1 : 0;
 }
