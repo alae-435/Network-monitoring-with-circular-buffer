@@ -1,4 +1,9 @@
+# Compiled executables
 *.exe
-test_circular_queue
-test_asan
 *.o
+
+# Generated packet datasets
+packets_*.csv
+
+# Temporary test files
+test_asan
